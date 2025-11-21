@@ -1,0 +1,16 @@
+name: .NET Code Coverage
+
+on:
+  workflow_call:
+    inputs:
+      dotnet-version:
+        description: '.NET SDK version to use'
+        required: false
+        type: string
+        default: '8.x'
+      build-configuration:
+        description: 'Build configuration'
+        required: false
+        type: string
+        default: 'Release'
+        
