@@ -1,0 +1,81 @@
+name: Reusable .NET Test Coverage
+
+on:
+  workflow_call:
+    inputs:
+      dotnet-version:
+        required: false
+        type: string
+        default: '8.x'
+      solution-path:
+        required: false
+        type: string
+        default: '.'
+      configuration:
+        required: false
+        type: string
+        default: 'Release'
+    outputs:
+      coverage-percentage:
+        description: "Overall code coverage percentage"
+        value: ${{ jobs.test.outputs.coverage }}
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+    outputs:
+      coverage: ${{ steps.coverage.outputs.percentage }}
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: ${{ inputs.dotnet-version }}
+    
+    - name: Restore dependencies
+      run: dotnet restore ${{ inputs.solution-path }}
+    
+    - name: Build
+      run: dotnet build --configuration ${{ inputs.configuration }} --no-restore ${{ inputs.solution-path }}
+    
+    - name: Test with Coverage
+      run: dotnet test --no-restore --verbosity normal --collect:"XPlat Code Coverage" --logger trx --results-directory coverage ${{ inputs.solution-path }}
+    
+    - name: Copy Coverage To Predictable Location
+      run: find coverage -type f -name coverage.cobertura.xml -exec cp -p {} coverage/coverage.cobertura.xml \;
+    
+    - name: Code Coverage Summary Report
+      id: coverage
+      uses: irongut/CodeCoverageSummary@v1.3.0
+      with:
+        filename: coverage/coverage.cobertura.xml
+        badge: true
+        format: 'markdown'
+        output: 'both'
+    
+    - name: Upload code coverage results artifact
+      uses: actions/upload-artifact@v4
+      if: success() || failure()
+      with:
+        name: code-coverage-results
+        path: code-coverage-results.md
+        retention-days: 1
+    
+    - name: Save the PR number in an artifact
+      if: github.event_name == 'pull_request' && (success() || failure())
+      shell: bash
+      env:
+        PR_NUMBER: ${{ github.event.number }}
+      run: echo $PR_NUMBER > pr-number.txt
+    
+    - name: Upload the PR number
+      uses: actions/upload-artifact@v4
+      if: github.event_name == 'pull_request' && (success() || failure())
+      with:
+        name: pr-number
+        path: ./pr-number.txt
+        retention-days: 1
