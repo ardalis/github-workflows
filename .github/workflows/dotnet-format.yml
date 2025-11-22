@@ -75,10 +75,19 @@ jobs:
         run: |
           if [ "${{ github.event_name }}" = "pull_request" ]; then
             echo "Base ref: ${{ github.base_ref }}"
+            if [ -z "${{ github.base_ref }}" ]; then
+              echo "Warning: github.base_ref is not available"
+              echo "changed_files=" > "$GITHUB_OUTPUT"
+              exit 0
+            fi
             git fetch origin ${{ github.base_ref }} --depth=1
-            CHANGED="$(git diff --name-only origin/${{ github.base_ref }}...HEAD | tr '\n' ' ')"
+            # Use newline-separated list for proper file path handling
+            CHANGED="$(git diff --name-only origin/${{ github.base_ref }}...HEAD)"
             echo "Changed files: $CHANGED"
-            echo "changed_files=$CHANGED" > "$GITHUB_OUTPUT"
+            # Save as newline-separated list
+            echo "changed_files<<EOF" >> "$GITHUB_OUTPUT"
+            echo "$CHANGED" >> "$GITHUB_OUTPUT"
+            echo "EOF" >> "$GITHUB_OUTPUT"
           else
             echo "Not a pull_request event; leaving changed_files empty."
             echo "changed_files=" > "$GITHUB_OUTPUT"
@@ -91,11 +100,17 @@ jobs:
           ONLY_CHANGED: ${{ inputs.only-changed-files }}
         run: |
           echo "mode=check"
-          if [ -n "$CHANGED_FILES" ] && [ "$ONLY_CHANGED" = "true" ]; then
+          if [ -n "$CHANGED_FILES" ] && [ "$ONLY_CHANGED" = "true" ] && [ "${{ github.event_name }}" = "pull_request" ]; then
             echo "Running dotnet format (verify) on changed files only..."
-            dotnet format "${{ inputs.solution-or-project }}" \
-              --verify-no-changes \
-              --include $CHANGED_FILES
+            # Read files into array to handle paths with spaces
+            readarray -t files <<< "$CHANGED_FILES"
+            if [ ${#files[@]} -gt 0 ]; then
+              dotnet format "${{ inputs.solution-or-project }}" \
+                --verify-no-changes \
+                --include "${files[@]}"
+            else
+              echo "No changed files to format."
+            fi
           else
             echo "Running dotnet format (verify) on full project/solution..."
             dotnet format "${{ inputs.solution-or-project }}" \
@@ -111,8 +126,14 @@ jobs:
           echo "mode=fix"
           if [ -n "$CHANGED_FILES" ] && [ "$ONLY_CHANGED" = "true" ] && [ "${{ github.event_name }}" = "pull_request" ]; then
             echo "Running dotnet format on changed files only..."
-            dotnet format "${{ inputs.solution-or-project }}" \
-              --include $CHANGED_FILES
+            # Read files into array to handle paths with spaces
+            readarray -t files <<< "$CHANGED_FILES"
+            if [ ${#files[@]} -gt 0 ]; then
+              dotnet format "${{ inputs.solution-or-project }}" \
+                --include "${files[@]}"
+            else
+              echo "No changed files to format."
+            fi
           else
             echo "Running dotnet format on full project/solution..."
             dotnet format "${{ inputs.solution-or-project }}"
