@@ -1,0 +1,144 @@
+name: dotnet-format
+
+on:
+  workflow_call:
+    inputs:
+      solution-or-project:
+        description: "Path to .sln or .csproj to format (relative to repo root)"
+        required: true
+        type: string
+
+      dotnet-version:
+        description: ".NET SDK version to use"
+        required: false
+        default: "8.x"
+        type: string
+
+      mode:
+        description: "'check' to fail if changes needed; 'fix' to auto-commit & push"
+        required: false
+        default: "check"
+        type: string
+
+      only-changed-files:
+        description: "If true, format only files changed in the PR (when possible)"
+        required: false
+        default: true
+        type: boolean
+
+      git-user-name:
+        description: "Git user.name used in 'fix' mode"
+        required: false
+        default: "dotnet-format-bot"
+        type: string
+
+      git-user-email:
+        description: "Git user.email used in 'fix' mode"
+        required: false
+        default: "dotnet-format-bot@users.noreply.github.com"
+        type: string
+
+      commit-message:
+        description: "Commit message used in 'fix' mode"
+        required: false
+        default: "chore: apply dotnet format"
+        type: string
+
+    secrets:
+      github-token:
+        required: false
+        description: "Optional PAT; if not provided, GITHUB_TOKEN will be used"
+
+jobs:
+  dotnet-format:
+    name: dotnet format (${{ inputs.mode }})
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          # Needed so we can diff against the base branch for PRs
+          fetch-depth: 0
+          # Use custom token if provided, otherwise use default GITHUB_TOKEN
+          token: ${{ secrets.github-token || github.token }}
+
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ inputs.dotnet-version }}
+
+      - name: Compute changed files (for PRs)
+        id: changed
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            echo "Base ref: ${{ github.base_ref }}"
+            git fetch origin ${{ github.base_ref }} --depth=1
+            CHANGED="$(git diff --name-only origin/${{ github.base_ref }}...HEAD | tr '\n' ' ')"
+            echo "Changed files: $CHANGED"
+            echo "changed_files=$CHANGED" > "$GITHUB_OUTPUT"
+          else
+            echo "Not a pull_request event; leaving changed_files empty."
+            echo "changed_files=" > "$GITHUB_OUTPUT"
+          fi
+
+      - name: Run dotnet format (check mode)
+        if: inputs.mode == 'check'
+        env:
+          CHANGED_FILES: ${{ steps.changed.outputs.changed_files }}
+          ONLY_CHANGED: ${{ inputs.only-changed-files }}
+        run: |
+          echo "mode=check"
+          if [ -n "$CHANGED_FILES" ] && [ "$ONLY_CHANGED" = "true" ]; then
+            echo "Running dotnet format (verify) on changed files only..."
+            dotnet format "${{ inputs.solution-or-project }}" \
+              --verify-no-changes \
+              --include $CHANGED_FILES
+          else
+            echo "Running dotnet format (verify) on full project/solution..."
+            dotnet format "${{ inputs.solution-or-project }}" \
+              --verify-no-changes
+          fi
+
+      - name: Run dotnet format (fix mode)
+        if: inputs.mode == 'fix'
+        env:
+          CHANGED_FILES: ${{ steps.changed.outputs.changed_files }}
+          ONLY_CHANGED: ${{ inputs.only-changed-files }}
+        run: |
+          echo "mode=fix"
+          if [ -n "$CHANGED_FILES" ] && [ "$ONLY_CHANGED" = "true" ] && [ "${{ github.event_name }}" = "pull_request" ]; then
+            echo "Running dotnet format on changed files only..."
+            dotnet format "${{ inputs.solution-or-project }}" \
+              --include $CHANGED_FILES
+          else
+            echo "Running dotnet format on full project/solution..."
+            dotnet format "${{ inputs.solution-or-project }}"
+          fi
+
+      - name: Commit & push formatting changes (fix mode, PR only)
+        if: inputs.mode == 'fix' && github.event_name == 'pull_request'
+        env:
+          GITHUB_HEAD_REF: ${{ github.head_ref }}
+          BOT_NAME: ${{ inputs.git-user-name }}
+          BOT_EMAIL: ${{ inputs.git-user-email }}
+          COMMIT_MESSAGE: ${{ inputs.commit-message }}
+        run: |
+          if [ -z "$GITHUB_HEAD_REF" ]; then
+            echo "No github.head_ref (not a normal PR), skipping commit."
+            exit 0
+          fi
+
+          if [ -z "$(git status --porcelain)" ]; then
+            echo "No formatting changes to commit."
+            exit 0
+          fi
+
+          git config user.name "$BOT_NAME"
+          git config user.email "$BOT_EMAIL"
+
+          git commit -am "$COMMIT_MESSAGE"
+          echo "Pushing changes to PR branch: $GITHUB_HEAD_REF"
+          git push origin HEAD:"$GITHUB_HEAD_REF"
