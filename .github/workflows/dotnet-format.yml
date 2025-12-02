@@ -50,7 +50,7 @@ on:
         description: "Token for private repository checkout"
       github-token:
         required: false
-        description: "Optional PAT; if not provided, GITHUB_TOKEN will be used (deprecated: use CHECKOUT_TOKEN)"
+        description: "Optional PAT (maintained for backward compatibility; prefer CHECKOUT_TOKEN)"
 
 jobs:
   dotnet-format:

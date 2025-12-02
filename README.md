@@ -55,7 +55,7 @@ jobs:
 | Name | Description | Required |
 |------|-------------|----------|
 | `CHECKOUT_TOKEN` | Token for private repository checkout | No |
-| `github-token` | Optional PAT (deprecated: use CHECKOUT_TOKEN) | No |
+| `github-token` | Optional PAT (maintained for backward compatibility; prefer CHECKOUT_TOKEN) | No |
 
 ### Examples
 
