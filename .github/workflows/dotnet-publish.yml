@@ -85,6 +85,26 @@ jobs:
       - name: Pack
         run: dotnet pack "${{ inputs.project-file }}" --configuration ${{ inputs.configuration }} --no-build --no-restore --output "${{ inputs.pack-output }}"
 
+      - name: List packed artifacts
+        shell: bash
+        env:
+          PACK_OUTPUT: ${{ inputs.pack-output }}
+        run: |
+          echo "📦 Looking for packages in: $PACK_OUTPUT"
+          if [ -d "$PACK_OUTPUT" ]; then
+            echo "Contents of $PACK_OUTPUT:"
+            ls -la "$PACK_OUTPUT"
+            nupkg_count=$(find "$PACK_OUTPUT" -maxdepth 1 -name "*.nupkg" 2>/dev/null | wc -l)
+            echo "Found $nupkg_count .nupkg file(s)"
+            if [ "$nupkg_count" -eq 0 ]; then
+              echo "::error::No .nupkg files found in $PACK_OUTPUT. The pack step may have failed or produced no output."
+              exit 1
+            fi
+          else
+            echo "::error::Pack output directory '$PACK_OUTPUT' does not exist. The pack step may have failed."
+            exit 1
+          fi
+
       - name: NuGet login (OIDC -> temp API key)
         if: steps.validate-secrets.outputs.use-oidc == 'true'
         uses: nuget/login@v1
@@ -99,13 +119,18 @@ jobs:
           PACK_OUTPUT: ${{ inputs.pack-output }}
           NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
         run: |
+          pushed_count=0
           for package in "$PACK_OUTPUT"/*.nupkg; do
             if [ -f "$package" ]; then
+              echo "📤 Pushing: $package"
               dotnet nuget push "$package" \
                 --api-key "$NUGET_API_KEY" \
                 --source https://api.nuget.org/v3/index.json
+              echo "✅ Successfully pushed: $package"
+              pushed_count=$((pushed_count + 1))
             fi
           done
+          echo "📊 Total packages pushed: $pushed_count"
 
       - name: Push to NuGet (OIDC)
         if: github.event_name == 'release' && github.event.action == 'published' && steps.validate-secrets.outputs.use-oidc == 'true'
@@ -114,10 +139,15 @@ jobs:
           PACK_OUTPUT: ${{ inputs.pack-output }}
           NUGET_API_KEY: ${{ steps.nuget-login.outputs.NUGET_API_KEY }}
         run: |
+          pushed_count=0
           for package in "$PACK_OUTPUT"/*.nupkg; do
             if [ -f "$package" ]; then
+              echo "📤 Pushing: $package"
               dotnet nuget push "$package" \
                 --api-key "$NUGET_API_KEY" \
                 --source https://api.nuget.org/v3/index.json
+              echo "✅ Successfully pushed: $package"
+              pushed_count=$((pushed_count + 1))
             fi
           done
+          echo "📊 Total packages pushed: $pushed_count"
