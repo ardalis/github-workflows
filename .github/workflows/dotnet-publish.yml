@@ -28,8 +28,11 @@ on:
 
     secrets:
       NUGET_USER:
-        description: "NuGet.org username for OIDC authentication"
-        required: true
+        description: "NuGet.org username for OIDC authentication (not supported when calling from external repos)"
+        required: false
+      NUGET_API_KEY:
+        description: "NuGet.org API key (required when calling from external repos, as OIDC is not supported)"
+        required: false
       CHECKOUT_TOKEN:
         description: "Token for private repository checkout"
         required: false
@@ -44,15 +47,27 @@ jobs:
 
     steps:
       - name: Validate required secrets
+        id: validate-secrets
         shell: bash
         env:
           NUGET_USER: ${{ secrets.NUGET_USER }}
+          NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
         run: |
-          if [ -z "$NUGET_USER" ]; then
-            echo "::error::NUGET_USER secret is required but not provided. Please set the NUGET_USER secret in your repository settings with your NuGet.org username."
+          if [ -z "$NUGET_USER" ] && [ -z "$NUGET_API_KEY" ]; then
+            echo "::error::Either NUGET_USER (for OIDC) or NUGET_API_KEY (for API key auth) secret is required but neither was provided."
+            echo "::error::Note: OIDC authentication (NUGET_USER) does not work when calling this workflow from external repositories."
+            echo "::error::If you're calling this workflow from a different repository, you must use NUGET_API_KEY instead."
             exit 1
           fi
-          echo "✅ NUGET_USER secret is configured."
+          # Prioritize API key over OIDC if both are provided, since OIDC doesn't work for external repos
+          if [ -n "$NUGET_API_KEY" ]; then
+            echo "✅ NUGET_API_KEY secret is configured. Using API key authentication."
+            echo "use-oidc=false" >> "$GITHUB_OUTPUT"
+          elif [ -n "$NUGET_USER" ]; then
+            echo "✅ NUGET_USER secret is configured. Using OIDC authentication."
+            echo "::warning::OIDC authentication does not work when calling this workflow from external repositories. If publishing fails with a 401 error, switch to using NUGET_API_KEY instead."
+            echo "use-oidc=true" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Checkout
         uses: actions/checkout@v4
@@ -74,13 +89,29 @@ jobs:
         run: dotnet pack "${{ inputs.project-file }}" --configuration ${{ inputs.configuration }} --no-build --no-restore --output "${{ inputs.pack-output }}"
 
       - name: NuGet login (OIDC -> temp API key)
+        if: steps.validate-secrets.outputs.use-oidc == 'true'
         uses: nuget/login@v1
         id: nuget-login
         with:
           user: ${{ secrets.NUGET_USER }}
 
-      - name: Push to NuGet
-        if: github.event_name == 'release' && github.event.action == 'published'
+      - name: Push to NuGet (API Key)
+        if: github.event_name == 'release' && github.event.action == 'published' && steps.validate-secrets.outputs.use-oidc == 'false'
+        shell: bash
+        env:
+          PACK_OUTPUT: ${{ inputs.pack-output }}
+          NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
+        run: |
+          for package in "$PACK_OUTPUT"/*.nupkg; do
+            if [ -f "$package" ]; then
+              dotnet nuget push "$package" \
+                --api-key "$NUGET_API_KEY" \
+                --source https://api.nuget.org/v3/index.json
+            fi
+          done
+
+      - name: Push to NuGet (OIDC)
+        if: github.event_name == 'release' && github.event.action == 'published' && steps.validate-secrets.outputs.use-oidc == 'true'
         shell: bash
         env:
           PACK_OUTPUT: ${{ inputs.pack-output }}
