@@ -123,11 +123,15 @@ jobs:
           for package in "$PACK_OUTPUT"/*.nupkg; do
             if [ -f "$package" ]; then
               echo "📤 Pushing: $package"
-              dotnet nuget push "$package" \
+              if dotnet nuget push "$package" \
                 --api-key "$NUGET_API_KEY" \
-                --source https://api.nuget.org/v3/index.json
-              echo "✅ Successfully pushed: $package"
-              pushed_count=$((pushed_count + 1))
+                --source https://api.nuget.org/v3/index.json; then
+                echo "✅ Successfully pushed: $package"
+                pushed_count=$((pushed_count + 1))
+              else
+                echo "::error::Failed to push: $package"
+                exit 1
+              fi
             fi
           done
           echo "📊 Total packages pushed: $pushed_count"
@@ -143,11 +147,15 @@ jobs:
           for package in "$PACK_OUTPUT"/*.nupkg; do
             if [ -f "$package" ]; then
               echo "📤 Pushing: $package"
-              dotnet nuget push "$package" \
+              if dotnet nuget push "$package" \
                 --api-key "$NUGET_API_KEY" \
-                --source https://api.nuget.org/v3/index.json
-              echo "✅ Successfully pushed: $package"
-              pushed_count=$((pushed_count + 1))
+                --source https://api.nuget.org/v3/index.json; then
+                echo "✅ Successfully pushed: $package"
+                pushed_count=$((pushed_count + 1))
+              else
+                echo "::error::Failed to push: $package"
+                exit 1
+              fi
             fi
           done
           echo "📊 Total packages pushed: $pushed_count"
