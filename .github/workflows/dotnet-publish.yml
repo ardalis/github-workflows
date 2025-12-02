@@ -83,7 +83,7 @@ jobs:
         run: dotnet build "${{ inputs.project-file }}" --configuration ${{ inputs.configuration }} --no-restore
 
       - name: Pack
-        run: dotnet pack "${{ inputs.project-file }}" --configuration ${{ inputs.configuration }} --no-build --no-restore --output "${{ inputs.pack-output }}"
+        run: dotnet pack "${{ inputs.project-file }}" --configuration ${{ inputs.configuration }} --no-restore --output "${{ inputs.pack-output }}"
 
       - name: List packed artifacts
         shell: bash
