@@ -1,0 +1,94 @@
+name: Publish to NuGet
+
+on:
+  workflow_call:
+    inputs:
+      project-file:
+        description: "Path to the .csproj file to publish (relative to repo root)"
+        required: true
+        type: string
+
+      dotnet-version:
+        description: ".NET SDK version to use"
+        required: false
+        default: "8.x"
+        type: string
+
+      pack-output:
+        description: "Output directory for the .nupkg file"
+        required: false
+        default: "artifacts/package/release"
+        type: string
+
+      configuration:
+        description: "Build configuration"
+        required: false
+        default: "Release"
+        type: string
+
+    secrets:
+      NUGET_USER:
+        description: "NuGet.org username for OIDC authentication"
+        required: true
+      CHECKOUT_TOKEN:
+        description: "Token for private repository checkout"
+        required: false
+
+jobs:
+  publish:
+    name: Build and Publish to NuGet
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - name: Validate required secrets
+        shell: bash
+        env:
+          NUGET_USER: ${{ secrets.NUGET_USER }}
+        run: |
+          if [ -z "$NUGET_USER" ]; then
+            echo "::error::NUGET_USER secret is required but not provided. Please set the NUGET_USER secret in your repository settings with your NuGet.org username."
+            exit 1
+          fi
+          echo "✅ NUGET_USER secret is configured."
+
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.CHECKOUT_TOKEN || github.token }}
+
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ inputs.dotnet-version }}
+
+      - name: Restore dependencies
+        run: dotnet restore "${{ inputs.project-file }}"
+
+      - name: Build
+        run: dotnet build "${{ inputs.project-file }}" --configuration ${{ inputs.configuration }} --no-restore
+
+      - name: Pack
+        run: dotnet pack "${{ inputs.project-file }}" --configuration ${{ inputs.configuration }} --no-build --no-restore --output "${{ inputs.pack-output }}"
+
+      - name: NuGet login (OIDC -> temp API key)
+        uses: nuget/login@v1
+        id: nuget-login
+        with:
+          user: ${{ secrets.NUGET_USER }}
+
+      - name: Push to NuGet
+        if: github.event_name == 'release' && github.event.action == 'published' && github.event.release.tag_name != ''
+        shell: pwsh
+        env:
+          PACK_OUTPUT: ${{ inputs.pack-output }}
+          NUGET_API_KEY: ${{ steps.nuget-login.outputs.NUGET_API_KEY }}
+        run: |
+          Get-ChildItem "$env:PACK_OUTPUT" -Filter *.nupkg |
+          ForEach-Object {
+            dotnet nuget push $_.FullName `
+              --api-key "$env:NUGET_API_KEY" `
+              --source https://api.nuget.org/v3/index.json
+          }
