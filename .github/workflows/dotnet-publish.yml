@@ -11,7 +11,7 @@ on:
       dotnet-version:
         description: ".NET SDK version to use"
         required: false
-        default: "8.x"
+        default: "10.x"
         type: string
 
       pack-output:
