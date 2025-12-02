@@ -8,6 +8,49 @@ Reusable GitHub action workflows for .NET projects.
 - [dotnet-test-coverage](#dotnet-test-coverage) - Run tests with code coverage reporting
 - [dotnet-coverage](#dotnet-coverage) - .NET code coverage workflow
 
+> **Using Private Repositories?** See the [Using with Private Repositories](#using-with-private-repositories) section for instructions on passing tokens.
+
+---
+
+## Using with Private Repositories
+
+When using these workflows with private repositories, you need to provide a Personal Access Token (PAT) that has permissions to checkout the repository. The default `GITHUB_TOKEN` doesn't have sufficient permissions to access private repositories in workflow calls.
+
+### Creating a Personal Access Token
+
+1. Go to **GitHub Settings** → **Developer settings** → **Personal access tokens** → **Tokens (classic)** or **Fine-grained tokens**
+2. Click **Generate new token**
+
+**For Classic tokens:**
+- Select the `repo` scope (Full control of private repositories)
+
+**For Fine-grained tokens:**
+- Select the target repository
+- Under **Repository permissions**, set **Contents** to **Read-only** (or **Read and write** if using `fix` mode in dotnet-format)
+
+### Storing the Token as a Repository Secret
+
+1. Navigate to your repository's **Settings** → **Secrets and variables** → **Actions**
+2. Click **New repository secret**
+3. Name it (e.g., `PAT_TOKEN`) and paste your token value
+4. Click **Add secret**
+
+### Passing the Token to Workflows
+
+Pass the token using the `secrets` parameter with `CHECKOUT_TOKEN`:
+
+```yaml
+jobs:
+  example:
+    uses: ardalis/github-workflows/.github/workflows/dotnet-format.yml@main
+    with:
+      solution-or-project: './MyProject.sln'
+    secrets:
+      CHECKOUT_TOKEN: ${{ secrets.PAT_TOKEN }}
+```
+
+> **Note**: The `CHECKOUT_TOKEN` secret name is used by the workflow, but your repository secret can be named anything (e.g., `PAT_TOKEN`, `PRIVATE_REPO_TOKEN`).
+
 ---
 
 ## dotnet-format
