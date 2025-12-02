@@ -13,4 +13,9 @@ on:
         required: false
         type: string
         default: 'Release'
+    secrets:
+      # CHECKOUT_TOKEN is defined for when jobs are added to this workflow
+      CHECKOUT_TOKEN:
+        description: 'Token for private repository checkout'
+        required: false
         

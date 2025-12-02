@@ -54,7 +54,8 @@ jobs:
 
 | Name | Description | Required |
 |------|-------------|----------|
-| `github-token` | Optional PAT; if not provided, GITHUB_TOKEN will be used | No |
+| `CHECKOUT_TOKEN` | Token for private repository checkout | No |
+| `github-token` | Optional PAT (maintained for backward compatibility; prefer CHECKOUT_TOKEN) | No |
 
 ### Examples
 
@@ -79,6 +80,19 @@ jobs:
       solution-or-project: './MyProject.sln'
       mode: 'fix'
       commit-message: 'style: auto-format code'
+```
+
+#### Using with private repositories
+
+```yaml
+jobs:
+  format-check:
+    uses: ardalis/github-workflows/.github/workflows/dotnet-format.yml@main
+    with:
+      solution-or-project: './MyProject.sln'
+      mode: 'check'
+    secrets:
+      CHECKOUT_TOKEN: ${{ secrets.PAT_TOKEN }}
 ```
 
 ---
@@ -122,6 +136,12 @@ jobs:
 | `solution-path` | Path to solution file, project file, or directory containing them | No | `.` |
 | `configuration` | Build configuration | No | `Release` |
 
+### Secrets
+
+| Name | Description | Required |
+|------|-------------|----------|
+| `CHECKOUT_TOKEN` | Token for private repository checkout | No |
+
 ### Outputs
 
 | Name | Description |
@@ -150,6 +170,18 @@ jobs:
     steps:
       - name: Coverage was
         run: echo "Coverage: ${{ needs.test.outputs.coverage-percentage }}%"
+```
+
+### Using with private repositories
+
+```yaml
+jobs:
+  test:
+    uses: ardalis/github-workflows/.github/workflows/dotnet-test-coverage.yml@main
+    with:
+      solution-path: '.'
+    secrets:
+      CHECKOUT_TOKEN: ${{ secrets.PAT_TOKEN }}
 ```
 
 ---
@@ -181,6 +213,25 @@ jobs:
 |------|-------------|----------|---------|
 | `dotnet-version` | .NET SDK version to use | No | `8.x` |
 | `build-configuration` | Build configuration | No | `Release` |
+
+### Secrets
+
+| Name | Description | Required |
+|------|-------------|----------|
+| `CHECKOUT_TOKEN` | Token for private repository checkout | No |
+
+### Using with private repositories
+
+```yaml
+jobs:
+  coverage:
+    uses: ardalis/github-workflows/.github/workflows/dotnet-coverage.yml@main
+    with:
+      dotnet-version: '8.x'
+      build-configuration: 'Release'
+    secrets:
+      CHECKOUT_TOKEN: ${{ secrets.PAT_TOKEN }}
+```
 
 ---
 
