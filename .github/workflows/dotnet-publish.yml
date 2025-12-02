@@ -47,6 +47,7 @@ jobs:
 
     steps:
       - name: Validate required secrets
+        id: validate-secrets
         shell: bash
         env:
           NUGET_USER: ${{ secrets.NUGET_USER }}
@@ -60,9 +61,11 @@ jobs:
           fi
           if [ -n "$NUGET_API_KEY" ]; then
             echo "✅ NUGET_API_KEY secret is configured. Using API key authentication."
+            echo "use-oidc=false" >> "$GITHUB_OUTPUT"
           elif [ -n "$NUGET_USER" ]; then
             echo "✅ NUGET_USER secret is configured. Using OIDC authentication."
             echo "::warning::OIDC authentication does not work when calling this workflow from external repositories. If publishing fails with a 401 error, switch to using NUGET_API_KEY instead."
+            echo "use-oidc=true" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Checkout
@@ -85,18 +88,33 @@ jobs:
         run: dotnet pack "${{ inputs.project-file }}" --configuration ${{ inputs.configuration }} --no-build --no-restore --output "${{ inputs.pack-output }}"
 
       - name: NuGet login (OIDC -> temp API key)
-        if: ${{ secrets.NUGET_USER != '' && secrets.NUGET_API_KEY == '' }}
+        if: steps.validate-secrets.outputs.use-oidc == 'true'
         uses: nuget/login@v1
         id: nuget-login
         with:
           user: ${{ secrets.NUGET_USER }}
 
-      - name: Push to NuGet
-        if: github.event_name == 'release' && github.event.action == 'published'
+      - name: Push to NuGet (API Key)
+        if: github.event_name == 'release' && github.event.action == 'published' && steps.validate-secrets.outputs.use-oidc == 'false'
         shell: bash
         env:
           PACK_OUTPUT: ${{ inputs.pack-output }}
-          NUGET_API_KEY: ${{ secrets.NUGET_API_KEY || steps.nuget-login.outputs.NUGET_API_KEY }}
+          NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
+        run: |
+          for package in "$PACK_OUTPUT"/*.nupkg; do
+            if [ -f "$package" ]; then
+              dotnet nuget push "$package" \
+                --api-key "$NUGET_API_KEY" \
+                --source https://api.nuget.org/v3/index.json
+            fi
+          done
+
+      - name: Push to NuGet (OIDC)
+        if: github.event_name == 'release' && github.event.action == 'published' && steps.validate-secrets.outputs.use-oidc == 'true'
+        shell: bash
+        env:
+          PACK_OUTPUT: ${{ inputs.pack-output }}
+          NUGET_API_KEY: ${{ steps.nuget-login.outputs.NUGET_API_KEY }}
         run: |
           for package in "$PACK_OUTPUT"/*.nupkg; do
             if [ -f "$package" ]; then
