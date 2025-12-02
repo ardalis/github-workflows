@@ -59,6 +59,7 @@ jobs:
             echo "::error::If you're calling this workflow from a different repository, you must use NUGET_API_KEY instead."
             exit 1
           fi
+          # Prioritize API key over OIDC if both are provided, since OIDC doesn't work for external repos
           if [ -n "$NUGET_API_KEY" ]; then
             echo "✅ NUGET_API_KEY secret is configured. Using API key authentication."
             echo "use-oidc=false" >> "$GITHUB_OUTPUT"

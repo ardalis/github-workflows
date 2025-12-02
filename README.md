@@ -394,7 +394,7 @@ jobs:
 | `NUGET_USER` | NuGet.org username for OIDC authentication (same-repo only) | No* |
 | `CHECKOUT_TOKEN` | Token for private repository checkout | No |
 
-\* Either `NUGET_API_KEY` or `NUGET_USER` must be provided. Use `NUGET_API_KEY` when calling this workflow from external repositories.
+\* Either `NUGET_API_KEY` or `NUGET_USER` must be provided. Use `NUGET_API_KEY` when calling this workflow from external repositories. If both are provided, `NUGET_API_KEY` takes precedence.
 
 ### Permissions
 
