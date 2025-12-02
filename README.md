@@ -7,6 +7,7 @@ Reusable GitHub action workflows for .NET projects.
 - [dotnet-format](#dotnet-format) - Check or auto-fix code formatting using `dotnet format`
 - [dotnet-test-coverage](#dotnet-test-coverage) - Run tests with code coverage reporting
 - [dotnet-coverage](#dotnet-coverage) - .NET code coverage workflow
+- [dotnet-publish](#dotnet-publish) - Build and publish NuGet packages using OIDC authentication
 
 > **Using Private Repositories?** See the [Using with Private Repositories](#using-with-private-repositories) section for instructions on passing tokens.
 
@@ -273,6 +274,137 @@ jobs:
       dotnet-version: '8.x'
       build-configuration: 'Release'
     secrets:
+      CHECKOUT_TOKEN: ${{ secrets.PAT_TOKEN }}
+```
+
+---
+
+## dotnet-publish
+
+Builds, packs, and publishes .NET projects to NuGet.org using OIDC authentication.
+
+### Features
+
+- Validates that required secrets are configured
+- Builds the project in Release configuration
+- Creates NuGet package (.nupkg)
+- Authenticates with NuGet.org using OIDC (no long-lived API keys needed)
+- Pushes packages to NuGet.org on release events
+
+### NuGet OIDC Setup
+
+This workflow uses OpenID Connect (OIDC) to authenticate with NuGet.org, which is more secure than using long-lived API keys. To set this up:
+
+1. Go to [NuGet.org](https://www.nuget.org/) and sign in
+2. Navigate to your account settings → **API keys**
+3. Click **Add** under **Trusted Publishers**
+4. Configure the trusted publisher:
+   - **Repository owner**: Your GitHub username or organization
+   - **Repository name**: The repository that will publish packages
+   - **Workflow file**: The workflow file path (e.g., `.github/workflows/publish.yml`)
+5. Save the configuration
+
+### Usage
+
+```yaml
+name: Publish to NuGet
+
+on:
+  workflow_dispatch:
+  release:
+    types: [published]
+
+jobs:
+  publish:
+    uses: ardalis/github-workflows/.github/workflows/dotnet-publish.yml@main
+    permissions:
+      contents: read
+      id-token: write
+    with:
+      project-file: './src/MyProject/MyProject.csproj'
+    secrets:
+      NUGET_USER: ${{ secrets.NUGET_USER }}
+```
+
+### Inputs
+
+| Name | Description | Required | Default |
+|------|-------------|----------|---------|
+| `project-file` | Path to .csproj file to publish (relative to repo root) | Yes | |
+| `dotnet-version` | .NET SDK version to use | No | `8.x` |
+| `pack-output` | Output directory for the .nupkg file | No | `artifacts/package/release` |
+| `configuration` | Build configuration | No | `Release` |
+
+### Secrets
+
+| Name | Description | Required |
+|------|-------------|----------|
+| `NUGET_USER` | NuGet.org username for OIDC authentication | Yes |
+| `CHECKOUT_TOKEN` | Token for private repository checkout | No |
+
+### Permissions
+
+The calling workflow must grant these permissions for OIDC to work:
+
+```yaml
+permissions:
+  contents: read
+  id-token: write
+```
+
+### Examples
+
+#### Publish on release
+
+```yaml
+name: Publish to NuGet
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  publish:
+    uses: ardalis/github-workflows/.github/workflows/dotnet-publish.yml@main
+    permissions:
+      contents: read
+      id-token: write
+    with:
+      project-file: './src/MyPackage/MyPackage.csproj'
+    secrets:
+      NUGET_USER: ${{ secrets.NUGET_USER }}
+```
+
+#### With custom .NET version and output directory
+
+```yaml
+jobs:
+  publish:
+    uses: ardalis/github-workflows/.github/workflows/dotnet-publish.yml@main
+    permissions:
+      contents: read
+      id-token: write
+    with:
+      project-file: './src/MyPackage/MyPackage.csproj'
+      dotnet-version: '9.x'
+      pack-output: './output/packages'
+    secrets:
+      NUGET_USER: ${{ secrets.NUGET_USER }}
+```
+
+#### Using with private repositories
+
+```yaml
+jobs:
+  publish:
+    uses: ardalis/github-workflows/.github/workflows/dotnet-publish.yml@main
+    permissions:
+      contents: read
+      id-token: write
+    with:
+      project-file: './src/MyPackage/MyPackage.csproj'
+    secrets:
+      NUGET_USER: ${{ secrets.NUGET_USER }}
       CHECKOUT_TOKEN: ${{ secrets.PAT_TOKEN }}
 ```
 
