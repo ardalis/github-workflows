@@ -49,7 +49,7 @@ jobs:
       run: dotnet build --configuration ${{ inputs.configuration }} --no-restore ${{ inputs.solution-path }}
     
     - name: Test with Coverage
-      run: dotnet test --no-restore --verbosity normal --collect:"XPlat Code Coverage" --logger trx --results-directory coverage ${{ inputs.solution-path }}
+      run: dotnet test --no-restore --configuration ${{ inputs.configuration }} --verbosity normal /p:CollectCoverage=true /p:CoverletOutputFormat=cobertura /p:CoverletOutput=./coverage/ --logger trx --results-directory coverage ${{ inputs.solution-path }}
     
     - name: Copy Coverage To Predictable Location
       run: find coverage -type f -name coverage.cobertura.xml -exec cp -p {} coverage/coverage.cobertura.xml \;

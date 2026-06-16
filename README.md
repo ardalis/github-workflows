@@ -9,6 +9,20 @@ Reusable GitHub action workflows for .NET projects.
 - [dotnet-coverage](#dotnet-coverage) - .NET code coverage workflow
 - [dotnet-publish](#dotnet-publish) - Build and publish NuGet packages using OIDC authentication
 
+## Versioning and Usage
+
+It is highly recommended to pin your workflow to a specific version (tag) to ensure your CI/CD process is stable and predictable. You can reference a specific version by appending `@<tag>` to the workflow path.
+
+For example, to use version `v1.0.0` of the `dotnet-format` workflow:
+
+```yaml
+jobs:
+  format:
+    uses: ardalis/github-workflows/.github/workflows/dotnet-format.yml@v1.0.0
+```
+
+You can also reference a branch, like `@main`, but this is not recommended for production use as it may introduce breaking changes unexpectedly.
+
 > **Using Private Repositories?** See the [Using with Private Repositories](#using-with-private-repositories) section for instructions on passing tokens.
 
 ---
